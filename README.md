@@ -6,6 +6,8 @@ exportable audit logs. Built as a learning project in defensive network
 monitoring — the kind of visibility a small home network otherwise lacks
 by default.
 
+![Dashboard Screenshot](images/dashboard-screenshot.png)
+
 ## What it does
 
 - **Device discovery** — periodic `nmap` scans identify every device
