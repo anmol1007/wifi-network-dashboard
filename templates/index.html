@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WiFi Device Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1420; --card: #171e2e; --border: #2a3346;
+    --accent: #5b9dff; --text: #e6e9f0; --muted: #8891a5; --good: #4ade80; --warn: #ffb84a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 32px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px 0; }
+  h2 { font-size: 16px; font-weight: 600; margin: 32px 0 12px 0; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  button, a.btn { background: var(--accent); color: #0f1420; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; text-decoration: none; display: inline-block; }
+  button.secondary, a.btn.secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+  button:hover, a.btn:hover { opacity: 0.9; }
+  .status { font-size: 13px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  th, td { text-align: left; padding: 12px 16px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
+  tr:last-child td { border-bottom: none; }
+  tr.new-device { background: #221c0f; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; color: var(--good); font-size: 12px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); }
+  .new-tag { font-size: 10px; background: #3a2a0f; color: var(--warn); padding: 2px 6px; border-radius: 4px; margin-left: 6px; font-weight: 700; }
+  .empty { text-align: center; padding: 40px; color: var(--muted); }
+  .error { background: #3a1a1a; border: 1px solid #6b2b2b; color: #ff8a8a; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
+  .name-input { background: #0f1420; border: 1px solid var(--border); color: var(--text); padding: 4px 8px; border-radius: 4px; font-size: 13px; width: 120px; }
+  .mono { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); }
+  .domain { font-family: ui-monospace, monospace; font-size: 12px; }
+  .tracker-tag { font-size: 10px; background: #3a2a1a; color: var(--warn); padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .summary-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .summary-card .value { font-size: 24px; font-weight: 700; }
+  .summary-card .label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .summary-card.alert .value { color: var(--warn); }
+</style>
+</head>
+<body>
+
+<h1>WiFi Device Dashboard</h1>
+<div class="subtitle" id="lastUpdated">Loading...</div>
+
+<div class="summary-grid" id="summaryGrid"></div>
+
+<div class="toolbar">
+  <button onclick="scanNow()">Scan Now</button>
+  <a class="btn secondary" href="/api/export/devices.csv">Export Devices CSV</a>
+  <a class="btn secondary" href="/api/export/activity.csv">Export Activity CSV</a>
+  <span class="status" id="deviceCount"></span>
+</div>
+
+<div id="errorBox"></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Status</th>
+      <th>Name</th>
+      <th>IP Address</th>
+      <th>MAC Address</th>
+      <th>Vendor</th>
+      <th>First Seen</th>
+      <th>Last Seen</th>
+    </tr>
+  </thead>
+  <tbody id="deviceTable"></tbody>
+</table>
+
+<h2>Recent Network Activity (via AdGuard)</h2>
+<div class="subtitle">Domain-level DNS activity per device. Background/tracker traffic is tagged.</div>
+<table>
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Client</th>
+      <th>Domain</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody id="activityTable"></tbody>
+</table>
+
+<script>
+async function fetchSummary() {
+  const grid = document.getElementById('summaryGrid');
+  try {
+    const res = await fetch('/api/summary');
+    const s = await res.json();
+    grid.innerHTML = `
+      <div class="summary-card"><div class="value">${s.online_now}</div><div class="label">Devices Online Now</div></div>
+      <div class="summary-card"><div class="value">${s.total_known_devices}</div><div class="label">Total Known Devices</div></div>
+      <div class="summary-card ${s.new_devices_this_scan > 0 ? 'alert' : ''}"><div class="value">${s.new_devices_this_scan}</div><div class="label">New This Scan</div></div>
+      <div class="summary-card"><div class="value">${s.dns_queries_today}</div><div class="label">DNS Queries Today</div></div>
+      <div class="summary-card"><div class="value">${s.blocked_today}</div><div class="label">Blocked Today</div></div>
+    `;
+  } catch (e) {
+    grid.innerHTML = '';
+  }
+}
+
+async function fetchDevices() {
+  const res = await fetch('/api/devices');
+  const data = await res.json();
+  render(data);
+}
+
+async function scanNow() {
+  document.getElementById('deviceCount').textContent = 'Scanning...';
+  const res = await fetch('/api/scan-now');
+  const data = await res.json();
+  render(data);
+  fetchSummary();
+}
+
+async function renameDevice(mac, inputEl) {
+  const name = inputEl.value.trim();
+  if (!name) return;
+  await fetch('/api/rename', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mac, name})
+  });
+  fetchDevices();
+}
+
+function render(data) {
+  const table = document.getElementById('deviceTable');
+  const errorBox = document.getElementById('errorBox');
+  const lastUpdated = document.getElementById('lastUpdated');
+  const deviceCount = document.getElementById('deviceCount');
+
+  lastUpdated.textContent = data.last_updated ? `Last updated: ${data.last_updated}` : 'Not yet scanned';
+  errorBox.innerHTML = data.error ? `<div class="error">${data.error}</div>` : '';
+
+  const devices = data.devices || [];
+  deviceCount.textContent = `${devices.length} device(s) found`;
+
+  if (devices.length === 0) {
+    table.innerHTML = `<tr><td colspan="7" class="empty">No devices found yet. Click "Scan Now" or wait for the next auto-scan.</td></tr>`;
+    return;
+  }
+
+  table.innerHTML = devices.map(d => `
+    <tr class="${d.is_new ? 'new-device' : ''}">
+      <td><span class="badge"><span class="dot"></span>Online</span>${d.is_new ? '<span class="new-tag">NEW</span>' : ''}</td>
+      <td>
+        <input class="name-input" placeholder="Add name..." value="${d.custom_name || ''}"
+          onkeydown="if(event.key==='Enter') renameDevice('${d.mac}', this)"
+          onblur="renameDevice('${d.mac}', this)" />
+      </td>
+      <td class="mono">${d.ip || '-'}</td>
+      <td class="mono">${d.mac || 'Unknown'}</td>
+      <td>${d.vendor || 'Unknown'}</td>
+      <td class="mono">${d.first_seen || '-'}</td>
+      <td class="mono">${d.last_seen || '-'}</td>
+    </tr>
+  `).join('');
+}
+
+async function fetchActivity() {
+  const table = document.getElementById('activityTable');
+  try {
+    const res = await fetch('/api/activity');
+    const data = await res.json();
+    if (data.logs && data.logs.error) {
+      table.innerHTML = `<tr><td colspan="4" class="empty">Couldn't reach AdGuard Home. Check config.py.</td></tr>`;
+      return;
+    }
+    const logs = data.logs || [];
+    if (logs.length === 0) {
+      table.innerHTML = `<tr><td colspan="4" class="empty">No activity logged yet.</td></tr>`;
+      return;
+    }
+    table.innerHTML = logs.slice(0, 50).map(l => `
+      <tr>
+        <td class="mono">${l.time ? new Date(l.time).toLocaleTimeString() : '-'}</td>
+        <td class="mono">${l.client || '-'}</td>
+        <td class="domain">${l.domain || '-'}</td>
+        <td>${l.blocked ? '<span class="tracker-tag">Blocked</span>' : 'Allowed'}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    table.innerHTML = `<tr><td colspan="4" class="empty">Error loading activity: ${e}</td></tr>`;
+  }
+}
+
+fetchSummary();
+fetchDevices();
+fetchActivity();
+setInterval(fetchSummary, 20000);
+setInterval(fetchDevices, 15000);
+setInterval(fetchActivity, 10000);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,15 @@
+# Real config with credentials -- never commit this
+config.py
+
+# Local device database
+devices.db
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# OS files
+.DS_Store
+Thumbs.db
